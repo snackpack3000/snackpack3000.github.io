@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Background Remover</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: 1px solid #ccc;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen">
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-lg p-6 md:p-10">
+            <header class="text-center mb-8">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Image Background Remover</h1>
+                <p class="text-gray-500 mt-2">Upload an image, pick a color, and remove the background.</p>
+            </header>
+
+            <div class="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center mb-6">
+                <input type="file" id="image-input" accept="image/*" class="hidden">
+                <button id="upload-button" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-300 shadow-sm">
+                    Select Image
+                </button>
+                <p id="file-name" class="mt-4 text-sm text-gray-500">No file selected.</p>
+            </div>
+            
+            <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                <strong class="font-bold">Error:</strong>
+                <span class="block sm:inline" id="error-text"></span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                <div class="text-center">
+                    <h2 class="text-xl font-semibold mb-3">Original</h2>
+                    <div id="original-image-container" class="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                        <img id="original-image" class="hidden max-w-full max-h-full object-contain rounded-lg">
+                        <span id="original-placeholder" class="text-gray-400">Your image will appear here</span>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <h2 class="text-xl font-semibold mb-3">Result</h2>
+                    <div id="processed-image-container" class="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAC1JREFUOE9jZGBgEGHAD97/p08fDAwMDAx//v//8//f/z//f/8/AAb/I42BgQEAr0kGzRig2aEAAAAASUVORKCYII=')] bg-repeat">
+                        <span class="text-gray-400">Processed image will appear here</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="controls" class="hidden flex-col items-center space-y-4 my-6">
+                <div class="flex items-center space-x-4">
+                    <div class="flex flex-col items-center">
+                        <label for="color-picker" class="text-sm font-medium text-gray-700 mb-1">Color to Remove</label>
+                        <input type="color" id="color-picker" value="#00ff00">
+                    </div>
+                    <div class="flex flex-col items-center w-48">
+                         <label for="tolerance-slider" class="text-sm font-medium text-gray-700 mb-1">Tolerance: <span id="tolerance-value">20</span></label>
+                        <input type="range" id="tolerance-slider" min="0" max="150" value="20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center space-y-4">
+                 <div class="flex items-center justify-center space-x-4">
+                    <button id="remove-bg-btn" class="w-full md:w-auto bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 transition-all duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md" disabled>
+                        <span>Remove Background</span>
+                    </button>
+                     <a id="download-btn" href="#" download="background-removed.png" class="hidden w-full md:w-auto bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 transition-all duration-300 shadow-md flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>Download</span>
+                    </a>
+                 </div>
+                <div id="loader" class="loader hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM element references
+        const imageInput = document.getElementById('image-input');
+        const uploadButton = document.getElementById('upload-button');
+        const fileNameDisplay = document.getElementById('file-name');
+        const removeBgBtn = document.getElementById('remove-bg-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const originalImageContainer = document.getElementById('original-image-container');
+        const originalImage = document.getElementById('original-image');
+        const originalPlaceholder = document.getElementById('original-placeholder');
+        const processedImageContainer = document.getElementById('processed-image-container');
+        const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const controls = document.getElementById('controls');
+        const colorPicker = document.getElementById('color-picker');
+        const toleranceSlider = document.getElementById('tolerance-slider');
+        const toleranceValue = document.getElementById('tolerance-value');
+
+        let downloadUrl = null;
+
+        // Event Listeners
+        uploadButton.addEventListener('click', () => imageInput.click());
+        imageInput.addEventListener('change', handleImageUpload);
+        removeBgBtn.addEventListener('click', processImage);
+        toleranceSlider.addEventListener('input', () => {
+            toleranceValue.textContent = toleranceSlider.value;
+        });
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage.src = e.target.result;
+                    originalImage.classList.remove('hidden');
+                    originalPlaceholder.classList.add('hidden');
+                    removeBgBtn.disabled = false;
+                    controls.classList.remove('hidden');
+                    controls.classList.add('flex');
+                    processedImageContainer.innerHTML = '<span class="text-gray-400">Ready to process</span>';
+                    downloadBtn.classList.add('hidden');
+                    if (downloadUrl) {
+                        URL.revokeObjectURL(downloadUrl);
+                        downloadUrl = null;
+                    }
+                    hideError();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        function processImage() {
+            if (!originalImage.src) {
+                showError("Please select an image first.");
+                return;
+            }
+
+            loader.classList.remove('hidden');
+            removeBgBtn.disabled = true;
+            downloadBtn.classList.add('hidden');
+            hideError();
+
+            // Use a timeout to allow the loader to render before the heavy work starts
+            setTimeout(() => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = originalImage.naturalWidth;
+                    canvas.height = originalImage.naturalHeight;
+                    ctx.drawImage(originalImage, 0, 0);
+
+                    const targetColor = hexToRgb(colorPicker.value);
+                    const tolerance = parseInt(toleranceSlider.value, 10);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+
+                        const distance = Math.sqrt(
+                            Math.pow(r - targetColor.r, 2) +
+                            Math.pow(g - targetColor.g, 2) +
+                            Math.pow(b - targetColor.b, 2)
+                        );
+
+                        if (distance <= tolerance) {
+                            // Make pixel transparent
+                            data[i + 3] = 0;
+                        }
+                    }
+
+                    ctx.putImageData(imageData, 0, 0);
+                    
+                    const resultUrl = canvas.toDataURL('image/png');
+                    processedImageContainer.innerHTML = `<img src="${resultUrl}" class="max-w-full max-h-full object-contain rounded-lg">`;
+
+                    if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+                    canvas.toBlob(blob => {
+                        downloadUrl = URL.createObjectURL(blob);
+                        downloadBtn.href = downloadUrl;
+                        downloadBtn.classList.remove('hidden');
+                    });
+
+                } catch (err) {
+                    console.error("Error processing image:", err);
+                    showError("Could not process the image. It might be too large or an unsupported format.");
+                } finally {
+                    loader.classList.add('hidden');
+                    removeBgBtn.disabled = false;
+                }
+            }, 50);
+        }
+
+        // --- Helper Functions ---
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
+
